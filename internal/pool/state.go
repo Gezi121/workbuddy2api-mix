@@ -4,6 +4,7 @@ package pool
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
@@ -287,9 +288,19 @@ func (p *Pool) List() []Status {
 }
 func (p *Pool) statusOf(uid string, e *entry) Status {
 	now := time.Now()
+	reg := "cn"
+	dom := ""
+	if e.a != nil {
+		dom = e.a.Domain
+		if strings.Contains(strings.ToLower(dom), ".ai") {
+			reg = "intl"
+		}
+	}
 	st := Status{
 		UID:             uid,
 		Nickname:        e.a.Nickname,
+		Region:          reg,
+		Domain:          dom,
 		Credits:         e.credits,
 		Cooling:         now.Before(e.until) || now.Before(e.breakerUntil),
 		Reason:          e.reason,

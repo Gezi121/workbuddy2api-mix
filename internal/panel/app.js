@@ -126,9 +126,16 @@ function renderAccounts(list) {
     const short = s.uid.length > 16 ? s.uid.slice(0, 16) + '…' : s.uid;
     const cred = s.credits == null ? '—' : s.credits;
     const frozen = s.disabled || cool > 0;
+    const isIntl = s.region === 'intl' || (s.domain && s.domain.includes('.ai'));
+    const regBadge = isIntl
+      ? '<span class="tag intl" title="国际版 (' + esc(s.domain || 'workbuddy.ai') + ')">国际版</span>'
+      : '<span class="tag cn" title="国内版 (' + esc(s.domain || 'copilot.tencent.com') + ')">国内版</span>';
     return '<tr class="' + cls + '" title="uid: ' + esc(s.uid) + '">' +
       '<td class="mark" aria-hidden="true"><i></i></td>' +
-      '<td class="who"><div class="nm">' + (s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + '</div><div class="id">' + esc(short) + '</div></td>' +
+      '<td class="who"><div class="nm" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">' +
+        (s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') +
+        regBadge +
+      '</div><div class="id">' + esc(short) + '</div></td>' +
       '<td>' + tag + note + '</td>' +
       '<td class="cred"><div class="n">' + cred + '</div><div class="bar"><i style="width:' + Math.round((s.credits || 0) / maxCred * 100) + '%"></i></div></td>' +
       '<td class="num">' + (s.success_count || 0) + ' <span style="color:var(--ink-3)">/</span> <span style="color:var(--bad)">' + (s.err_total || 0) + '</span></td>' +

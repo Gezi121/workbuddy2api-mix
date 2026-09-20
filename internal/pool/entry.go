@@ -29,6 +29,8 @@ func (k CoolKind) String() string {
 type Status struct {
 	UID             string    `json:"uid"`
 	Nickname        string    `json:"nickname,omitempty"`
+	Region          string    `json:"region,omitempty"` // "cn" 或 "intl"
+	Domain          string    `json:"domain,omitempty"` // 账号所属上游域名
 	Credits         int64     `json:"credits"`
 	Cooling         bool      `json:"cooling"`
 	CoolKind        string    `json:"cool_kind,omitempty"`
