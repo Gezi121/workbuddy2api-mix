@@ -89,6 +89,7 @@ func (p *Pool) Revive(uid string) bool {
 	e.reason = ""
 	e.softStreak = 0
 	e.softRateModel = "" // 模型级限流豁免随冷却一并清（防泄漏到后续账号级限流）
+	e.modelCooldowns = nil
 	e.sessionDeadFails = 0
 	e.fails = 0
 	e.retryCount = 0
@@ -327,6 +328,34 @@ func (p *Pool) statusOf(uid string, e *entry) Status {
 		}
 		st.CoolKind = e.coolKind.String()
 	}
+	var rlModels []RateLimitedModel
+	for m, mc := range e.modelCooldowns {
+		if !mc.Until.IsZero() && now.Before(mc.Until) {
+			rlModels = append(rlModels, RateLimitedModel{
+				Model:   m,
+				Until:   mc.Until,
+				ResetAt: mc.ResetAt,
+				Reason:  mc.Reason,
+			})
+		}
+	}
+	if e.softRateModel != "" && !e.until.IsZero() && now.Before(e.until) {
+		already := false
+		for _, row := range rlModels {
+			if row.Model == e.softRateModel {
+				already = true
+				break
+			}
+		}
+		if !already {
+			rlModels = append(rlModels, RateLimitedModel{
+				Model:  e.softRateModel,
+				Until:  e.until,
+				Reason: e.reason,
+			})
+		}
+	}
+	st.RateLimitedModels = rlModels
 	return st
 }
 

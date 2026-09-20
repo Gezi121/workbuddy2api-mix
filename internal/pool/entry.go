@@ -38,6 +38,7 @@ type Status struct {
 	Until           time.Time `json:"until,omitempty"`
 	Reason          string    `json:"reason,omitempty"`
 	SoftStreak      int       `json:"soft_streak,omitempty"` // 连续软冷却次数（指数退避指数，见 entry.softStreak）
+	RateLimitedModels []RateLimitedModel `json:"rate_limited_models,omitempty"` // 被 6004 限流的模型及重置时间
 	Disabled        bool      `json:"disabled"`
 	DisabledReason  string    `json:"disabled_reason,omitempty"` // 仅 disabled 账号：禁用原因（运维可见）
 	SuccessCount    int64     `json:"success_count,omitempty"`
@@ -49,6 +50,15 @@ type Status struct {
 	BreakerFails int       `json:"breaker_fails"`
 	BreakerUntil time.Time `json:"breaker_until,omitempty"`
 }
+
+// RateLimitedModel 单个被限流模型的台账行（记录限流模型、预计恢复时间与上游原始重置时间）。
+type RateLimitedModel struct {
+	Model   string    `json:"model"`
+	Until   time.Time `json:"until,omitempty"`
+	ResetAt time.Time `json:"reset_at,omitempty"`
+	Reason  string    `json:"reason,omitempty"`
+}
+
 type entry struct {
 	a            *auth.Auth
 	credits      int64

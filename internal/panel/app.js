@@ -115,17 +115,42 @@ function renderAccounts(list) {
   tb.innerHTML = list.map(s => {
     const bl = (new Date(s.breaker_until || 0) - Date.now()) / 1000;
     const cool = Math.max(s.cool_remaining_sec || 0, bl > 0 ? bl : 0);
+    const rlList = (s.rate_limited_models || []).filter(m => (new Date(m.until || 0) - Date.now()) > 0);
     let cls = '', tag;
-    if (s.disabled) { cls = 'off'; tag = '<span class="tag bad">已禁用</span>'; }
-    else if (cool > 0) {
+    if (s.disabled) { 
+      cls = 'off'; 
+      tag = '<span class="tag bad">已禁用</span>'; 
+    } else if (cool > 0) {
       cls = 'cool';
       const kind = bl > (s.cool_remaining_sec || 0) ? '熔断' : (s.cool_kind === 'hard_credit' ? '积分冷却' : '限流冷却');
       tag = '<span class="tag warn">' + kind + ' · ' + dur(cool) + '</span>';
-    } else tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
-    const note = s.reason ? '<div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + esc(s.reason) + '</div>' : '';
+    } else if (rlList.length > 0) {
+      cls = 'cool';
+      const firstRl = rlList[0];
+      const rlSec = Math.max(1, Math.round((new Date(firstRl.until) - Date.now()) / 1000));
+      tag = '<span class="tag warn" title="限流模型: ' + esc(firstRl.model) + '">限流中 · ' + dur(rlSec) + '</span>';
+    } else {
+      tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
+    }
+
+    let note = '';
+    if (rlList.length > 0) {
+      const details = rlList.map(m => {
+        let tStr = '';
+        if (m.reset_at) {
+          const dt = new Date(m.reset_at);
+          tStr = ' (' + dt.getHours().toString().padStart(2, '0') + ':' + dt.getMinutes().toString().padStart(2, '0') + ':' + dt.getSeconds().toString().padStart(2, '0') + ' 重置)';
+        }
+        return esc(m.model) + tStr;
+      }).join(', ');
+      note = '<div class="hint" style="font-size:11.5px;color:var(--warn);margin-top:3px">⚠️ 限流: ' + details + '</div>';
+    } else if (s.reason) {
+      note = '<div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + esc(s.reason) + '</div>';
+    }
+
     const short = s.uid.length > 16 ? s.uid.slice(0, 16) + '…' : s.uid;
     const cred = s.credits == null ? '—' : s.credits;
-    const frozen = s.disabled || cool > 0;
+    const frozen = s.disabled || cool > 0 || rlList.length > 0;
     const isIntl = s.region === 'intl' || (s.domain && s.domain.includes('.ai'));
     const regBadge = isIntl
       ? '<span class="tag intl" title="国际版 (' + esc(s.domain || 'workbuddy.ai') + ')">国际版</span>'
