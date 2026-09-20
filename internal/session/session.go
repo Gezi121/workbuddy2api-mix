@@ -30,10 +30,11 @@ type entry struct {
 // Config 路由依赖；Available 返回"可用账号"（healthy 且未占满在途）的有序 uid 列表，
 // 由 pool.AvailableUIDs 提供。Store 可为 redisstore.Noop（纯内存）。
 type Config struct {
-	TTL        time.Duration
-	GCInterval time.Duration
-	Store      redisstore.Store
-	Available  func() []string
+	TTL               time.Duration
+	GCInterval        time.Duration
+	Store             redisstore.Store
+	Available         func() []string
+	AvailableForModel func(model string) []string
 }
 
 // Router 会话粘性路由器。
@@ -117,10 +118,15 @@ func (r *Router) LoadFromStore() {
 }
 
 // Resolve 返回会话 key 应绑定的账号 uid，ok=false 表示当前无可用账号。
-// 命中且账号可用 → 滚动 lastActive 并直接返回；否则（lazy 异常情况）走重新分配。
 func (r *Router) Resolve(key string) (string, bool) {
+	return r.ResolveForModel(key, "")
+}
+
+// ResolveForModel 模型感知版本：返回会话 key 在指定模型下应绑定的账号 uid。
+// 若原绑定号在该模型下不可用（如触发 6004 限流），则自动判定失效并重新分配可用账号。
+func (r *Router) ResolveForModel(key, model string) (string, bool) {
 	now := time.Now()
-	available := r.availableSet()
+	available := r.availableSet(model)
 
 	// ── Fast path: RLock 快查 ──────────────────────────────
 	r.mu.RLock()
@@ -131,7 +137,7 @@ func (r *Router) Resolve(key string) (string, bool) {
 			r.touch(key, e.uid, now)
 			return e.uid, true
 		}
-		// 绑定号已冷却/占满 → 失效，落入慢路径重分配。
+		// 绑定号在该模型下已冷却/限流/占满 → 失效，落入慢路径重分配。
 	}
 
 	// ── Slow path: 写锁 re-check 后分配 ────────────────────
@@ -147,7 +153,7 @@ func (r *Router) Resolve(key string) (string, bool) {
 		delete(r.entries, key) // 失效：清掉再分配
 	}
 
-	uids := r.availableSlice()
+	uids := r.availableSlice(model)
 	if len(uids) == 0 {
 		return "", false
 	}
@@ -240,9 +246,9 @@ func (r *Router) gcOnce(now time.Time) int {
 	return len(expiredKeys)
 }
 
-// availableSet 把 Available() 的有序列表转集合（快路径命中校验用）。
-func (r *Router) availableSet() map[string]bool {
-	uids := r.availableSlice()
+// availableSet 把 Available 的有序列表转集合（快路径命中校验用）。
+func (r *Router) availableSet(model string) map[string]bool {
+	uids := r.availableSlice(model)
 	set := make(map[string]bool, len(uids))
 	for _, u := range uids {
 		set[u] = true
@@ -250,8 +256,11 @@ func (r *Router) availableSet() map[string]bool {
 	return set
 }
 
-// availableSlice 安全调用 Available（nil 函数视空池）。
-func (r *Router) availableSlice() []string {
+// availableSlice 安全调用 AvailableForModel 或 Available。
+func (r *Router) availableSlice(model string) []string {
+	if model != "" && r.cfg.AvailableForModel != nil {
+		return r.cfg.AvailableForModel(model)
+	}
 	if r.cfg.Available == nil {
 		return nil
 	}

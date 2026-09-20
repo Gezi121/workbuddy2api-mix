@@ -84,10 +84,11 @@ func main() {
 	}
 	if cfg.SessionSticky.Enabled {
 		sessRouter = session.New(session.Config{
-			TTL:        cfg.SessionTTL,
-			GCInterval: cfg.SessionGCInterval,
-			Store:      store,
-			Available:  p.AvailableUIDs,
+			TTL:               cfg.SessionTTL,
+			GCInterval:        cfg.SessionGCInterval,
+			Store:             store,
+			Available:         p.AvailableUIDs,
+			AvailableForModel: p.AvailableUIDsForModel,
 		})
 		sessRouter.LoadFromStore() // 启动时从 Redis 恢复粘性（读操作仅此处）
 		sessRouter.StartGC()

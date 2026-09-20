@@ -171,12 +171,22 @@ func (p *Pool) AuthByUID(uid string) *auth.Auth {
 // AvailableUIDs 返回当前 healthy 且未占满在途名额的账号 UID 列表（按 UID 排序，稳定输出）。
 // 供会话粘性路由（internal/session）做快路径命中校验 + 双段分配；无可用返回空切片。
 func (p *Pool) AvailableUIDs() []string {
+	return p.AvailableUIDsForModel("")
+}
+
+// AvailableUIDsForModel 模型感知版本：按 healthyForModel 判定可用性。
+// 6004 被限流的模型在该模型下被剔除，但对其他模型仍可用。
+func (p *Pool) AvailableUIDsForModel(model string) []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	now := time.Now()
 	uids := make([]string, 0, len(p.byUID))
 	for uid, e := range p.byUID {
-		if !e.healthy(now) {
+		healthy := e.healthy(now)
+		if model != "" {
+			healthy = e.healthyForModel(now, model)
+		}
+		if !healthy {
 			continue
 		}
 		if p.inFlightFull(e) {
@@ -191,6 +201,12 @@ func (p *Pool) AvailableUIDs() []string {
 // PickByUID 若 uid 当前 healthy 且未占满在途名额，返回其凭证（记录 lastUsed 防撞号）；
 // 否则返回 nil。供会话粘性路由命中校验与直取使用。
 func (p *Pool) PickByUID(uid string) *auth.Auth {
+	return p.PickByUIDForModel(uid, "")
+}
+
+// PickByUIDForModel 模型感知版本：若账号在该模型下已处于 6004 独立冷却，则返回 nil，
+// 促使会话粘性立即解绑并重选可用账号。
+func (p *Pool) PickByUIDForModel(uid, model string) *auth.Auth {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	e, ok := p.byUID[uid]
@@ -198,7 +214,11 @@ func (p *Pool) PickByUID(uid string) *auth.Auth {
 		return nil
 	}
 	now := time.Now()
-	if !e.healthy(now) {
+	healthy := e.healthy(now)
+	if model != "" {
+		healthy = e.healthyForModel(now, model)
+	}
+	if !healthy {
 		return nil
 	}
 	if p.inFlightFull(e) {
