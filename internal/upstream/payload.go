@@ -146,6 +146,31 @@ func normalizeRoles(obj map[string]any) {
 	}
 }
 
+// ensureFirstMessageIsSystem 保证 messages 数组的首条消息为 system 角色。
+//
+// 根因：国际版（workbuddy.ai）安全策略极其严苛，出站首条消息若不是 system
+// （例如纯 user 消息起步的会话或旧会话上下文），上游直接拒绝并返回 HTTP 400 code=11128
+// "first message is not system prompt"。在此处若首条非 system，自动插入一条
+// 默认 system 提示词，使各客户端及新旧多轮会话均能 100% 畅通。
+func ensureFirstMessageIsSystem(obj map[string]any) {
+	msgs, ok := obj["messages"].([]any)
+	if !ok || len(msgs) == 0 {
+		return
+	}
+	first, ok := msgs[0].(map[string]any)
+	if ok {
+		role, _ := first["role"].(string)
+		if strings.EqualFold(strings.TrimSpace(role), "system") {
+			return
+		}
+	}
+	defaultSystem := map[string]any{
+		"role":    "system",
+		"content": "You are a helpful assistant.",
+	}
+	obj["messages"] = append([]any{defaultSystem}, msgs...)
+}
+
 // normalizeToolChoice 按上游 Go struct（string 类型）改写 OpenAI tool_choice。
 //   - "none"            → 删 tool_choice + 删 tools/functions
 //   - {"type":"none"}   → 同上

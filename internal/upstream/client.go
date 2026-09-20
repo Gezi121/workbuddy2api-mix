@@ -434,8 +434,12 @@ func (c *Client) RefreshToken(a *auth.Auth) error {
 // 非 2xx 时 rc 为 nil、body 为上游响应体（供调用方 Classify(status, string(body))）、err 为 nil；
 // 只有传输层失败才返回 err。
 func (c *Client) ChatStream(a *auth.Auth, body []byte) (rc io.ReadCloser, status int, respBody []byte, err error) {
+	wireBody := c.prepareBody(body)
+	if RegionOf(a) == RegionINTL {
+		wireBody = EnsureFirstMessageIsSystem(wireBody)
+	}
 	url := c.chatBase(a) + "/v2/chat/completions"
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(c.prepareBody(body)))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(wireBody))
 	if err != nil {
 		return nil, 0, nil, err
 	}

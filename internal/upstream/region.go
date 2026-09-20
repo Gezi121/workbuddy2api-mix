@@ -11,6 +11,7 @@
 package upstream
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
@@ -119,4 +120,35 @@ func BillingBase(region Region) string {
 		return billingBaseINTL
 	}
 	return billingBaseCN
+}
+
+// EnsureFirstMessageIsSystem 保证国际版出站请求首条消息为 system 提示词。
+// 国际版（workbuddy.ai）安全策略强制要求第一条消息必须是 system prompt，
+// 若非 system 必定触发 HTTP 400 code=11128 "first message is not system prompt"。
+func EnsureFirstMessageIsSystem(src []byte) []byte {
+	var obj map[string]any
+	if err := json.Unmarshal(src, &obj); err != nil {
+		return src
+	}
+	msgs, ok := obj["messages"].([]any)
+	if !ok || len(msgs) == 0 {
+		return src
+	}
+	first, ok := msgs[0].(map[string]any)
+	if ok {
+		role, _ := first["role"].(string)
+		if strings.EqualFold(strings.TrimSpace(role), "system") {
+			return src
+		}
+	}
+	defaultSystem := map[string]any{
+		"role":    "system",
+		"content": "You are a helpful assistant.",
+	}
+	obj["messages"] = append([]any{defaultSystem}, msgs...)
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return src
+	}
+	return out
 }
