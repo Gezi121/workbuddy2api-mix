@@ -457,6 +457,13 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 				log.Printf("content-blocked (likely fingerprint false positive) -> degraded prompt retry")
 				continue
 			}
+			// 上下文超限（11115）：请求级错误非账号错误（换任何号都同样超限），立即返回 400，不换号不罚号。
+			if kind == upstream.ErrPromptTooLong {
+				fail(acct.UID)
+				writeOpenAIError(w, http.StatusBadRequest, "context_length_exceeded", string(respBody))
+				st.status = http.StatusBadRequest
+				return
+			}
 			lastErr = &upstream.Error{Kind: kind, Status: status, Msg: string(respBody)}
 			if kind == upstream.ErrSoftRate && upstream.IsModelRateLimit(string(respBody)) {
 				log.Printf("WARN: [server] chat uid=%s: model %s hit 6004 rate limit, rotating to next account (attempt %d/%d)",

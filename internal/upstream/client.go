@@ -30,6 +30,7 @@ const (
 	ErrServer                        // 5xx 上游故障
 	ErrContentBlocked                // 内容策略拦截（400 + 审核文案）→ 不罚账号，走降级重试
 	ErrBadParams                     // 请求体解析失败（400 + Unmarshal chat params failed / 11101）→ 不罚账号，仍轮转
+	ErrPromptTooLong                 // 上下文超限（400 + 11115 / prompt is too long）→ 请求级错误，不罚账号不轮转
 	ErrClient                        // 其他 4xx / 业务错误
 )
 
@@ -49,6 +50,8 @@ func (k ErrKind) String() string {
 		return "content_blocked"
 	case ErrBadParams:
 		return "bad_params"
+	case ErrPromptTooLong:
+		return "prompt_too_long"
 	case ErrClient:
 		return "client"
 	default:
@@ -217,6 +220,9 @@ func Classify(status int, body string) ErrKind {
 	// 内容策略拦截（HTTP 400 + 审核文案）：判在通用 ErrClient 之前。
 	// 这是误报信号，不罚账号，由网关降级重试处理（见 handler.applyErrorPolicy）。
 	if status >= 400 {
+		if strings.Contains(body, "11115") || strings.Contains(lower, "prompt is too long") || strings.Contains(lower, "context_length_exceeded") {
+			return ErrPromptTooLong
+		}
 		for _, m := range contentBlockedMarkers {
 			if strings.Contains(lower, m) {
 				return ErrContentBlocked
