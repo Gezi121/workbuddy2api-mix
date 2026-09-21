@@ -17,10 +17,11 @@ import (
 
 // Config 顶层配置。
 type Config struct {
-	Listen    string `json:"listen"`     // ":7863"
-	APIKey    string `json:"api_key"`    // 空 = 不鉴权
-	AuthDir   string `json:"auth_dir"`   // ./auths
-	StateFile string `json:"state_file"` // ./data/state.json
+	Listen        string `json:"listen"`         // ":7863"
+	APIKey        string `json:"api_key"`        // 外部 API 客户端调用密钥；空 = 不鉴权
+	PanelPassword string `json:"panel_password"` // Web 管理面板独立访问密码；空 = 回落 APIKey 鉴权
+	AuthDir       string `json:"auth_dir"`       // ./auths
+	StateFile     string `json:"state_file"`     // ./data/state.json
 
 	Server struct {
 		// MaxBodyMB 聊天请求体大小上限（单位 MB，默认 8）。

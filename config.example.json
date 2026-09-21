@@ -1,6 +1,7 @@
 {
   "listen": ":7863",
-  "api_key": "test_key",
+  "api_key": "your_api_key_here",
+  "panel_password": "your_panel_password_here",
   "auth_dir": "./auths",
   "state_file": "./data/state.json",
   "server": {
